@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Buckshot Roulette Multiplayer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body class="bg-neutral-950 text-neutral-100 min-h-screen p-4 sm:p-6 font-sans antialiased">
+  <div class="max-w-4xl mx-auto space-y-6">
+    <header class="text-center py-4 border-b border-neutral-800">
+      <h1 class="text-3xl font-black text-amber-500 tracking-wider">BUCKSHOT ROULETTE</h1>
+      <p class="text-xs text-neutral-400 mt-1">Multiplayer Russian Roulette (2-8 Players)</p>
+    </header>
+
+    <!-- Lobby Screen -->
+    <div id="lobby-screen" class="bg-neutral-900 border border-neutral-800 p-6 rounded-2xl max-w-md mx-auto space-y-4 shadow-xl">
+      <div>
+        <label class="block text-xs uppercase font-bold text-neutral-400 mb-1">Player Nickname</label>
+        <input id="player-name" type="text" placeholder="Enter alias" class="w-full p-2.5 bg-neutral-950 border border-neutral-700 rounded-lg text-white font-medium focus:outline-none focus:border-amber-500" />
+      </div>
+      <button id="btn-create" class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold rounded-lg uppercase tracking-wide transition">Create Room</button>
+      <div class="pt-2 border-t border-neutral-800">
+        <label class="block text-xs uppercase font-bold text-neutral-400 mb-1">Join with Code</label>
+        <div class="flex gap-2">
+          <input id="room-code-input" type="text" placeholder="CODE" class="w-full p-2.5 uppercase text-center font-mono font-bold bg-neutral-950 border border-neutral-700 rounded-lg focus:outline-none focus:border-cyan-500" />
+          <button id="btn-join" class="px-5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-lg uppercase transition">Join</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Game / Lobby Container -->
+    <div id="game-screen" class="hidden space-y-6">
+      <div class="flex justify-between items-center bg-neutral-900 p-4 rounded-xl border border-neutral-800">
+        <div>
+          <span class="text-xs text-amber-500 font-mono font-bold">ROOM: <span id="display-room-code" class="text-white text-lg font-black"></span></span>
+          <div id="chamber-status" class="text-xs text-neutral-400 font-mono mt-1">Waiting for game start...</div>
+        </div>
+        <button id="btn-start-game" class="hidden px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold rounded-lg uppercase transition">Start Game</button>
+      </div>
+
+      <!-- Turn Banner -->
+      <div id="turn-banner" class="text-center text-sm font-bold font-mono py-2.5 px-4 rounded-xl bg-neutral-900 border border-neutral-800 text-amber-400"></div>
+
+      <!-- Players List -->
+      <div id="players-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3"></div>
+
+      <!-- Action Controls -->
+      <div id="action-controls" class="hidden flex flex-col sm:flex-row gap-3 justify-center max-w-md mx-auto">
+        <button id="btn-shoot-self" class="flex-1 py-3 px-4 bg-neutral-800 hover:bg-neutral-700 border border-neutral-600 rounded-xl font-bold uppercase text-xs tracking-wider transition">Shoot Self (Blank = Keep Turn)</button>
+        <button id="btn-shoot-other" class="flex-1 py-3 px-4 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold uppercase text-xs tracking-wider transition">Shoot Target</button>
+      </div>
+
+      <!-- Game Logs -->
+      <div class="bg-neutral-900 border border-neutral-800 p-4 rounded-xl">
+        <h3 class="text-xs font-mono font-bold text-neutral-400 mb-2">EVENT LOG</h3>
+        <div id="log-feed" class="max-h-32 overflow-y-auto space-y-1 text-xs font-mono text-neutral-300"></div>
+      </div>
+    </div>
+  </div>
+  <script src="/client.js"></script>
+</body>
+</html>

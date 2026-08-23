@@ -1,0 +1,8 @@
+{
+  "name": "Buckshot Roulette Multiplayer",
+  "description": "A real-time multiplayer Russian roulette party game with authoritative server, shotgun chamber mechanics, item loadouts, and turns for 2 to 8 players.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
