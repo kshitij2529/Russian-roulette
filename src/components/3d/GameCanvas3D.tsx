@@ -2,7 +2,7 @@ import React, { useMemo, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { PerspectiveCamera } from "@react-three/drei";
 import * as THREE from "three";
-import { ActionOutcome, Player, PublicRoomState } from "../../types";
+import { ActionOutcome, PublicRoomState } from "../../types";
 import { TableScene } from "./TableScene";
 import { Shotgun3D } from "./Shotgun3D";
 import { OpponentFigure3D } from "./OpponentFigure3D";
@@ -19,7 +19,7 @@ interface GameCanvas3DProps {
   onSelectTarget: (playerId: string) => void;
 }
 
-// First person POV camera controller with subtle breathing and recoil
+// First-person POV camera controller: position [0, 2.2, 4], fov 50, looking down at [0, 0, 0]
 const FirstPersonCameraController: React.FC<{
   isShaking: boolean;
   selectedTargetPos: [number, number, number] | null;
@@ -50,18 +50,19 @@ const FirstPersonCameraController: React.FC<{
       shakeIntensity.current = THREE.MathUtils.lerp(shakeIntensity.current, 0, delta * 6);
     }
 
-    cameraRef.current.position.x = swayX + shakeX;
-    cameraRef.current.position.y = 1.25 + swayY + shakeY;
-    cameraRef.current.position.z = 2.85;
+    // Set camera position to [0, 2.2, 4] with subtle sway/shake
+    cameraRef.current.position.x = 0 + swayX + shakeX;
+    cameraRef.current.position.y = 2.2 + swayY + shakeY;
+    cameraRef.current.position.z = 4.0;
 
-    // Default look target: center table slightly elevated
-    const lookTarget = new THREE.Vector3(0, 0.45, 0);
+    // Base look target: center table [0, 0, 0]
+    const lookTarget = new THREE.Vector3(0, 0, 0);
 
     // If an opponent is targeted, glance slightly toward them
     if (selectedTargetPos) {
-      lookTarget.x = selectedTargetPos[0] * 0.15;
-      lookTarget.y = 0.48 + selectedTargetPos[1] * 0.05;
-      lookTarget.z = selectedTargetPos[2] * 0.15;
+      lookTarget.x = selectedTargetPos[0] * 0.18;
+      lookTarget.y = selectedTargetPos[1] * 0.1;
+      lookTarget.z = selectedTargetPos[2] * 0.18;
     }
 
     cameraRef.current.lookAt(lookTarget);
@@ -71,10 +72,10 @@ const FirstPersonCameraController: React.FC<{
     <PerspectiveCamera
       ref={cameraRef}
       makeDefault
-      fov={52}
+      fov={50}
       near={0.1}
       far={100}
-      position={[0, 1.25, 2.85]}
+      position={[0, 2.2, 4]}
     />
   );
 };
@@ -96,34 +97,32 @@ export const GameCanvas3D: React.FC<GameCanvas3DProps> = ({
     return roomState.players.filter((p) => p.id !== myPlayerId);
   }, [roomState.players, myPlayerId]);
 
-  // Position opponents along the opposite arc of the circular table
+  // Position all opponents in a semi-circular arc on the opposite side of the table
+  // (from angle -60 deg to +60 deg) at a radius of 2.9 units
   const opponentsWith3DPositions = useMemo(() => {
     const totalOthers = otherPlayers.length;
     if (totalOthers === 0) return [];
 
-    const tableRadius = 2.35;
-    
-    // Spread opponents across an arc from PI * 0.4 to PI * 1.6
-    const startAngle = Math.PI * 0.45;
-    const endAngle = Math.PI * 1.55;
-    const angleRange = endAngle - startAngle;
+    const radius = 2.9;
+    const minDeg = -60;
+    const maxDeg = 60;
 
     return otherPlayers.map((player, index) => {
-      let angle: number;
+      let deg = 0;
       if (totalOthers === 1) {
-        angle = Math.PI; // Directly across the table
+        deg = 0; // Directly across the table
       } else {
-        angle = startAngle + (index / (totalOthers - 1)) * angleRange;
+        deg = minDeg + (index / (totalOthers - 1)) * (maxDeg - minDeg);
       }
 
-      // X and Z coordinates on the circle
-      // Angle PI (180 deg) is at x = 0, z = -R (directly across)
-      const x = Math.sin(angle) * tableRadius;
-      const z = Math.cos(angle) * tableRadius;
-      const y = 0.25;
+      const rad = (deg * Math.PI) / 180;
+      // Arc centered on opposite side (-Z axis)
+      const x = radius * Math.sin(rad);
+      const z = -radius * Math.cos(rad);
+      const y = 0; // seated relative to table ground level
 
-      // Rotation angle facing center
-      const rotY = angle + Math.PI;
+      // Rotation around Y so figure faces the center (0,0,0)
+      const rotY = Math.atan2(x, z);
 
       return {
         player,
@@ -156,29 +155,29 @@ export const GameCanvas3D: React.FC<GameCanvas3DProps> = ({
         gl={{
           antialias: true,
           toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: 1.15,
+          toneMappingExposure: 1.2,
         }}
       >
         {/* Background is pitch black */}
         <color attach="background" args={["#030303"]} />
-        <fog attach="fog" args={["#050505", 5, 18]} />
+        <fog attach="fog" args={["#050505", 6, 20]} />
 
-        {/* First Person Camera */}
+        {/* First Person Camera (Position [0, 2.2, 4], FOV 50, looking down at center) */}
         <FirstPersonCameraController
           isShaking={!!animatingShot}
           selectedTargetPos={target3DPosition}
         />
 
-        {/* Ambient base darkness */}
-        <ambientLight intensity={0.12} color="#1c1917" />
+        {/* Ambient light with intensity={0.4} so room and table are clearly visible */}
+        <ambientLight intensity={0.4} color="#e5e5e5" />
 
-        {/* The Circular Wooden Table & Center Skulls */}
+        {/* The Circular Wooden Table, Overhead Spotlight & Skulls Centerpiece */}
         <TableScene isSawedOff={roomState.isSawedOff} />
 
-        {/* Motes / Atmosphere Particles floating in the light */}
-        <AtmosphereParticles count={80} />
+        {/* Atmosphere Motes floating in the light cone */}
+        <AtmosphereParticles count={70} />
 
-        {/* Opponents seated around the table */}
+        {/* Opponents seated in semi-circular arc (-60° to +60° at radius 2.9) */}
         {opponentsWith3DPositions.map(({ player, position, rotationY }) => (
           <OpponentFigure3D
             key={player.id}
@@ -193,7 +192,7 @@ export const GameCanvas3D: React.FC<GameCanvas3DProps> = ({
           />
         ))}
 
-        {/* The 3D Shotgun in the Center */}
+        {/* The 3D Shotgun resting flat on table center at [0, 0.1, 0] */}
         <Shotgun3D
           targetPosition={target3DPosition}
           pointAtSelf={pointAtSelf}

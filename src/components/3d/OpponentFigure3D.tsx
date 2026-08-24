@@ -62,11 +62,11 @@ export const OpponentFigure3D: React.FC<OpponentFigure3DProps> = ({
       }}
       onPointerOut={() => setHovered(false)}
     >
-      {/* Selection / Target Indicator Disc on Table */}
+      {/* Selection / Target Indicator Disc on Table Edge */}
       {isSelected && !isDead && (
         <mesh
           ref={targetRingRef}
-          position={[0, 0.49, -0.6]}
+          position={[0, 0.1, -0.6]}
           rotation={[-Math.PI / 2, 0, 0]}
         >
           <ringGeometry args={[0.22, 0.28, 32]} />
@@ -86,44 +86,44 @@ export const OpponentFigure3D: React.FC<OpponentFigure3DProps> = ({
         </mesh>
       )}
 
-      {/* Wooden Chair behind player */}
-      <group position={[0, -0.2, 0.45]}>
+      {/* Wooden Chair behind opponent */}
+      <group position={[0, -0.5, 0.45]}>
         {/* Chair Seat */}
-        <mesh position={[0, -0.25, 0]} receiveShadow>
+        <mesh position={[0, 0, 0]} receiveShadow>
           <boxGeometry args={[0.55, 0.06, 0.5]} />
           <meshStandardMaterial color="#1a0f0a" roughness={0.9} />
         </mesh>
         {/* Chair Backrest */}
-        <mesh position={[0, 0.15, 0.22]} castShadow>
-          <boxGeometry args={[0.52, 0.7, 0.05]} />
+        <mesh position={[0, 0.4, 0.22]} castShadow>
+          <boxGeometry args={[0.52, 0.75, 0.05]} />
           <meshStandardMaterial color="#24140e" roughness={0.85} />
         </mesh>
         {/* Chair Legs */}
-        <mesh position={[-0.22, -0.6, -0.18]}>
+        <mesh position={[-0.22, -0.35, -0.18]}>
           <cylinderGeometry args={[0.025, 0.025, 0.65, 8]} />
           <meshStandardMaterial color="#140a06" />
         </mesh>
-        <mesh position={[0.22, -0.6, -0.18]}>
+        <mesh position={[0.22, -0.35, -0.18]}>
           <cylinderGeometry args={[0.025, 0.025, 0.65, 8]} />
           <meshStandardMaterial color="#140a06" />
         </mesh>
-        <mesh position={[-0.22, -0.6, 0.2]}>
+        <mesh position={[-0.22, -0.35, 0.2]}>
           <cylinderGeometry args={[0.025, 0.025, 0.65, 8]} />
           <meshStandardMaterial color="#140a06" />
         </mesh>
-        <mesh position={[0.22, -0.6, 0.2]}>
+        <mesh position={[0.22, -0.35, 0.2]}>
           <cylinderGeometry args={[0.025, 0.025, 0.65, 8]} />
           <meshStandardMaterial color="#140a06" />
         </mesh>
       </group>
 
-      {/* 3D Human Figure / Seated Opponent */}
+      {/* 3D Character Bust / Seated Opponent Capsule */}
       <group
-        position={[0, isDead ? -0.1 : 0, isDead ? -0.25 : 0]}
+        position={[0, isDead ? -0.2 : 0, isDead ? -0.25 : 0]}
         rotation={[isDead ? 0.45 : (hovered ? -0.05 : 0), 0, 0]}
       >
-        {/* Torso / Clothes with Player Avatar Color */}
-        <mesh position={[0, 0.35, 0.1]} castShadow receiveShadow>
+        {/* Torso Capsule with Player Avatar Color */}
+        <mesh position={[0, 0.15, 0.1]} castShadow receiveShadow>
           <capsuleGeometry args={[0.24, 0.48, 12, 16]} />
           <meshStandardMaterial
             color={isDead ? "#1c1917" : player.avatarColor || "#475569"}
@@ -133,46 +133,46 @@ export const OpponentFigure3D: React.FC<OpponentFigure3DProps> = ({
         </mesh>
 
         {/* Arms resting toward table */}
-        <group position={[0, 0.38, -0.1]}>
+        <group position={[0, 0.22, -0.05]}>
           {/* Left Arm */}
           <mesh
-            position={[-0.32, -0.05, -0.15]}
-            rotation={[0.6, 0.2, -0.2]}
+            position={[-0.32, -0.08, -0.2]}
+            rotation={[0.65, 0.2, -0.2]}
             castShadow
           >
-            <cylinderGeometry args={[0.065, 0.055, 0.45, 12]} />
+            <cylinderGeometry args={[0.065, 0.055, 0.48, 12]} />
             <meshStandardMaterial
               color={isDead ? "#18181b" : player.avatarColor || "#475569"}
               roughness={0.7}
             />
           </mesh>
           {/* Left Hand on table */}
-          <mesh position={[-0.28, -0.22, -0.32]}>
+          <mesh position={[-0.28, -0.22, -0.42]}>
             <sphereGeometry args={[0.06, 8, 8]} />
             <meshStandardMaterial color={isDead ? "#52525b" : "#d4a373"} roughness={0.8} />
           </mesh>
 
           {/* Right Arm */}
           <mesh
-            position={[0.32, -0.05, -0.15]}
-            rotation={[0.6, -0.2, 0.2]}
+            position={[0.32, -0.08, -0.2]}
+            rotation={[0.65, -0.2, 0.2]}
             castShadow
           >
-            <cylinderGeometry args={[0.065, 0.055, 0.45, 12]} />
+            <cylinderGeometry args={[0.065, 0.055, 0.48, 12]} />
             <meshStandardMaterial
               color={isDead ? "#18181b" : player.avatarColor || "#475569"}
               roughness={0.7}
             />
           </mesh>
           {/* Right Hand on table */}
-          <mesh position={[0.28, -0.22, -0.32]}>
+          <mesh position={[0.28, -0.22, -0.42]}>
             <sphereGeometry args={[0.06, 8, 8]} />
             <meshStandardMaterial color={isDead ? "#52525b" : "#d4a373"} roughness={0.8} />
           </mesh>
         </group>
 
-        {/* Head / Eerie Anonymous Mask (like reference photo) */}
-        <group position={[0, 0.92, 0.06]}>
+        {/* Head / Eerie Anonymous Mask */}
+        <group position={[0, 0.72, 0.06]}>
           {/* Head Base */}
           <mesh castShadow>
             <sphereGeometry args={[0.18, 16, 16]} />
@@ -182,7 +182,7 @@ export const OpponentFigure3D: React.FC<OpponentFigure3DProps> = ({
             />
           </mesh>
 
-          {/* Eerie White/Porcelain Mask front */}
+          {/* Porcelain Mask Front */}
           <mesh position={[0, -0.01, -0.12]} rotation={[0, Math.PI, 0]} castShadow>
             <sphereGeometry args={[0.16, 16, 16, 0, Math.PI, 0, Math.PI]} />
             <meshStandardMaterial
@@ -192,7 +192,7 @@ export const OpponentFigure3D: React.FC<OpponentFigure3DProps> = ({
             />
           </mesh>
 
-          {/* Mask Eye Sockets */}
+          {/* Eye Sockets */}
           <mesh position={[-0.055, 0.02, -0.16]}>
             <sphereGeometry args={[0.025, 8, 8]} />
             <meshBasicMaterial color="#09090b" />
@@ -202,7 +202,7 @@ export const OpponentFigure3D: React.FC<OpponentFigure3DProps> = ({
             <meshBasicMaterial color="#09090b" />
           </mesh>
 
-          {/* Mask Smile/Stitch */}
+          {/* Mask Mouth Slot */}
           <mesh position={[0, -0.06, -0.16]}>
             <boxGeometry args={[0.06, 0.008, 0.01]} />
             <meshBasicMaterial color="#18181b" />
@@ -211,7 +211,7 @@ export const OpponentFigure3D: React.FC<OpponentFigure3DProps> = ({
 
         {/* Handcuff 3D Rings if handcuffed */}
         {player.isHandcuffed && !isDead && (
-          <group position={[0, 0.16, -0.38]}>
+          <group position={[0, 0.05, -0.42]}>
             <mesh rotation={[Math.PI / 2, 0, 0]}>
               <torusGeometry args={[0.09, 0.022, 8, 16]} />
               <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.2} />
@@ -221,11 +221,11 @@ export const OpponentFigure3D: React.FC<OpponentFigure3DProps> = ({
         )}
       </group>
 
-      {/* 2D Billboard HTML Badge floating above Opponent */}
+      {/* Floating 2D Billboard Name & Status Badge directly above head */}
       <Html
-        position={[0, 1.48, 0]}
+        position={[0, 1.4, 0]}
         center
-        distanceFactor={6.2}
+        distanceFactor={6.5}
         style={{ pointerEvents: isDead ? "none" : "auto" }}
       >
         <div
@@ -233,13 +233,13 @@ export const OpponentFigure3D: React.FC<OpponentFigure3DProps> = ({
           className={`select-none transition-all duration-200 cursor-pointer flex flex-col items-center gap-1 p-2 rounded-xl backdrop-blur-md border ${
             isSelected
               ? isHandcuffMode
-                ? "bg-amber-950/90 border-amber-400 ring-2 ring-amber-500 shadow-xl shadow-amber-950"
+                ? "bg-amber-950/90 border-amber-400 ring-2 ring-amber-500 shadow-xl shadow-amber-950 scale-105"
                 : "bg-red-950/95 border-red-500 ring-2 ring-red-600 shadow-xl shadow-red-950 scale-105"
               : hovered && isMyTurn && !isDead
               ? "bg-stone-900/90 border-stone-600 shadow-lg scale-105"
               : isCurrentTurn
               ? "bg-amber-950/80 border-amber-500/80 shadow-lg"
-              : "bg-stone-950/80 border-stone-800"
+              : "bg-stone-950/85 border-stone-800"
           } ${isDead ? "opacity-40 grayscale" : ""}`}
         >
           {/* Target Reticle Indicator on Selection */}

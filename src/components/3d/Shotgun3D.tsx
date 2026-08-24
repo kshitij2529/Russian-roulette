@@ -24,8 +24,8 @@ export const Shotgun3D: React.FC<Shotgun3DProps> = ({
   const smokeRef = useRef<THREE.Mesh>(null);
   const recoilOffset = useRef<number>(0);
 
-  // Default camera position is approximately [0, 1.3, 3.2]
-  const selfPosition = new THREE.Vector3(0, 1.1, 3.0);
+  // Local first person camera position is [0, 2.2, 4]
+  const selfPosition = new THREE.Vector3(0, 1.8, 3.8);
 
   useEffect(() => {
     if (isFiring) {
@@ -37,43 +37,39 @@ export const Shotgun3D: React.FC<Shotgun3DProps> = ({
     if (!groupRef.current) return;
 
     // Determine target aim point
-    let aimTarget = new THREE.Vector3(0, 0.45, -2.5); // Default facing across table
+    let aimTarget = new THREE.Vector3(0, 0.3, -2.9); // Default facing directly across table
 
     if (pointAtSelf) {
       aimTarget = selfPosition.clone();
     } else if (targetPosition) {
       aimTarget = new THREE.Vector3(targetPosition[0], targetPosition[1] + 0.3, targetPosition[2]);
     } else if (activeShooterPosition) {
-      // Point from center toward shooter or target
       aimTarget = new THREE.Vector3(activeShooterPosition[0], activeShooterPosition[1] + 0.3, activeShooterPosition[2]);
     }
 
-    // Calculate look orientation
+    // Keep gun resting flat on the center of the table at [0, 0.1, 0]
+    groupRef.current.position.set(0, 0.1, 0);
+
     const currentPos = groupRef.current.position.clone();
-    
-    // Slight levitation/table resting height
-    const baseHeight = 0.52;
-    groupRef.current.position.y = baseHeight + Math.sin(Date.now() * 0.002) * 0.015;
 
     // Calculate rotation toward target
     const targetQuaternion = new THREE.Quaternion();
     const lookMatrix = new THREE.Matrix4();
     
-    // In our model, the barrel points along +Z (or -Z)
-    // We aim the gun barrel toward aimTarget
+    // In our model layout, barrel points along +Z
     lookMatrix.lookAt(currentPos, aimTarget, new THREE.Vector3(0, 1, 0));
     targetQuaternion.setFromRotationMatrix(lookMatrix);
 
     // Smoothly slerp towards aim rotation
-    groupRef.current.quaternion.slerp(targetQuaternion, Math.min(delta * 6.5, 1.0));
+    groupRef.current.quaternion.slerp(targetQuaternion, Math.min(delta * 7.0, 1.0));
 
     // Handle recoil animation
     if (recoilOffset.current > 0.001) {
       recoilOffset.current = THREE.MathUtils.lerp(recoilOffset.current, 0, delta * 8);
-      // Kickback in opposite direction of aim
+      // Kickback in opposite direction of barrel
       const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(groupRef.current.quaternion);
-      groupRef.current.position.addScaledVector(forward, -recoilOffset.current * 0.4);
-      groupRef.current.rotation.x -= recoilOffset.current * 0.3;
+      groupRef.current.position.addScaledVector(forward, -recoilOffset.current * 0.3);
+      groupRef.current.rotation.x -= recoilOffset.current * 0.2;
     }
 
     // Muzzle flash decay
@@ -95,11 +91,11 @@ export const Shotgun3D: React.FC<Shotgun3DProps> = ({
   });
 
   return (
-    <group ref={groupRef} position={[0, 0.52, 0]}>
+    <group ref={groupRef} position={[0, 0.1, 0]}>
       {/* Muzzle flash light */}
       <pointLight
         ref={muzzleFlashRef}
-        position={[0, 0.05, isSawedOff ? 0.65 : 1.25]}
+        position={[0, 0.05, isSawedOff ? 0.65 : 1.2]}
         color={shellFiredType === "live" ? "#ff6b00" : "#60a5fa"}
         intensity={isFiring ? (shellFiredType === "live" ? 8 : 2) : 0}
         distance={4.5}
