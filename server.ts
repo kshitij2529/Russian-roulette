@@ -13,8 +13,8 @@ import {
   ShellType,
 } from "./src/types.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// In CommonJS / bundled Node, __dirname and __filename are built-in:
+const currentDir = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
 
 const PORT = Number(process.env.PORT) || 3000;
 const app = express();
