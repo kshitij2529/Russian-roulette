@@ -1,5 +1,26 @@
 export type ShellType = 'live' | 'blank';
 
+export type ItemType =
+  | 'magnifying_glass'
+  | 'burner_phone'
+  | 'cigarettes'
+  | 'beer'
+  | 'handsaw'
+  | 'handcuffs'
+  | 'inverter';
+
+export type ItemCategory = 'information' | 'survival' | 'utility' | 'offensive' | 'control' | 'tactical';
+
+export interface ItemDefinition {
+  type: ItemType;
+  name: string;
+  category: ItemCategory;
+  description: string;
+  shortDesc: string;
+  iconName: string;
+  requiresTarget?: boolean;
+}
+
 export interface Player {
   id: string;
   socketId: string;
@@ -12,6 +33,8 @@ export interface Player {
   isSpectator: boolean;
   shotsFired: number;
   damageTaken: number;
+  items: ItemType[];
+  isHandcuffed: boolean;
 }
 
 export interface ChamberPublicInfo {
@@ -25,7 +48,7 @@ export interface GameLogEntry {
   id: string;
   timestamp: number;
   text: string;
-  type: 'info' | 'live' | 'blank' | 'reload' | 'elimination' | 'victory' | 'join' | 'leave';
+  type: 'info' | 'live' | 'blank' | 'reload' | 'elimination' | 'victory' | 'join' | 'leave' | 'item';
 }
 
 export interface ActionOutcome {
@@ -41,6 +64,16 @@ export interface ActionOutcome {
   message: string;
   targetDied: boolean;
   nextTurnPlayerId: string;
+  isSawedOff?: boolean;
+}
+
+export interface PrivateItemResult {
+  id: string;
+  itemType: ItemType;
+  title: string;
+  message: string;
+  shellType?: ShellType;
+  shellPosition?: number;
 }
 
 export type GameStatus = 'lobby' | 'playing' | 'game_over';
@@ -58,6 +91,7 @@ export interface PublicRoomState {
   winner: Player | null;
   logs: GameLogEntry[];
   lastOutcome: ActionOutcome | null;
+  isSawedOff: boolean;
 }
 
 export interface ServerRoom {
@@ -74,4 +108,6 @@ export interface ServerRoom {
   winner: Player | null;
   logs: GameLogEntry[];
   lastOutcome: ActionOutcome | null;
+  isSawedOff: boolean;
 }
+

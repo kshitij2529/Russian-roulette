@@ -7,7 +7,9 @@ import { createServer as createViteServer } from "vite";
 import {
   ActionOutcome,
   GameLogEntry,
+  ItemType,
   Player,
+  PrivateItemResult,
   PublicRoomState,
   ServerRoom,
   ShellType,
@@ -31,6 +33,16 @@ app.use(express.json());
 
 // In-memory room store
 const rooms = new Map<string, ServerRoom>();
+
+const ALL_ITEM_TYPES: ItemType[] = [
+  "magnifying_glass",
+  "burner_phone",
+  "cigarettes",
+  "beer",
+  "handsaw",
+  "handcuffs",
+  "inverter",
+];
 
 // Helper: generate 4-character uppercase room code
 function generateRoomCode(): string {
@@ -84,6 +96,52 @@ function generateShells(roundNum: number = 1): { shells: ShellType[]; liveCount:
   return { shells, liveCount, blankCount };
 }
 
+// Helper: Distribute scaled items to alive players based on player count
+function distributeItemsToPlayers(room: ServerRoom) {
+  const alivePlayers = Array.from(room.players.values()).filter((p) => p.isAlive && !p.isSpectator);
+  const totalAlive = alivePlayers.length;
+  if (totalAlive === 0) return;
+
+  // Item scaling setup:
+  // 2-3 Players: 3 items each
+  // 4-5 Players: 4 items each
+  // 6-8 Players: 5 items each
+  let itemsToGrant = 3;
+  if (totalAlive >= 6) {
+    itemsToGrant = 5;
+  } else if (totalAlive >= 4) {
+    itemsToGrant = 4;
+  }
+
+  alivePlayers.forEach((player) => {
+    // Guaranteed Loadout: 1 Information item, 1 Survival item
+    const infoItem: ItemType = Math.random() < 0.5 ? "magnifying_glass" : "burner_phone";
+    const survivalItem: ItemType = "cigarettes";
+
+    const newItems: ItemType[] = [infoItem, survivalItem];
+
+    // Remaining slots randomly from full pool
+    const remainingSlots = itemsToGrant - 2;
+    for (let i = 0; i < remainingSlots; i++) {
+      const randomItem = ALL_ITEM_TYPES[Math.floor(Math.random() * ALL_ITEM_TYPES.length)];
+      newItems.push(randomItem);
+    }
+
+    // Add items up to max 5 items cap per player
+    for (const it of newItems) {
+      if (player.items.length < 5) {
+        player.items.push(it);
+      }
+    }
+  });
+
+  addRoomLog(
+    room,
+    `📦 Industrial item crates opened! Each alive player received ${itemsToGrant} items (Max 5 held).`,
+    "item"
+  );
+}
+
 // Convert ServerRoom to safe PublicRoomState (omitting secretChamber)
 function getPublicRoomState(room: ServerRoom): PublicRoomState {
   return {
@@ -97,8 +155,9 @@ function getPublicRoomState(room: ServerRoom): PublicRoomState {
     chamberInfo: { ...room.chamberInfo },
     roundNumber: room.roundNumber,
     winner: room.winner,
-    logs: room.logs.slice(-25), // Keep last 25 logs for bandwidth
+    logs: room.logs.slice(-30), // Keep last 30 logs
     lastOutcome: room.lastOutcome,
+    isSawedOff: room.isSawedOff,
   };
 }
 
@@ -116,6 +175,13 @@ function addRoomLog(
   room.logs.push(entry);
 }
 
+function getOrdinalSuffix(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return s[(v - 20) % 10] || s[v] || s[0];
+}
+
+// Turn resolution with Handcuffs skipping check
 function getNextAlivePlayerId(room: ServerRoom, currentId: string | null): string | null {
   const alivePlayers = room.turnOrder
     .map((id) => room.players.get(id))
@@ -129,11 +195,21 @@ function getNextAlivePlayerId(room: ServerRoom, currentId: string | null): strin
   const currentIndex = room.turnOrder.indexOf(currentId);
   const totalSlots = room.turnOrder.length;
 
-  for (let offset = 1; offset <= totalSlots; offset++) {
+  for (let offset = 1; offset <= totalSlots * 2; offset++) {
     const checkIndex = (currentIndex + offset) % totalSlots;
     const candidateId = room.turnOrder[checkIndex];
     const candidate = room.players.get(candidateId);
     if (candidate && candidate.isAlive) {
+      if (candidate.isHandcuffed) {
+        // Handcuff wears off and forces player to skip turn!
+        candidate.isHandcuffed = false;
+        addRoomLog(
+          room,
+          `⛓️ ${candidate.name} is trapped in Handcuffs and forced to skip their turn!`,
+          "item"
+        );
+        continue;
+      }
       room.currentTurnIndex = checkIndex;
       return candidate.id;
     }
@@ -144,26 +220,28 @@ function getNextAlivePlayerId(room: ServerRoom, currentId: string | null): strin
 
 // Check win condition
 function checkGameStatus(room: ServerRoom): boolean {
-  const alivePlayers = Array.from(room.players.values()).filter((p) => p.isAlive);
+  const alivePlayers = Array.from(room.players.values()).filter((p) => p.isAlive && !p.isSpectator);
 
   if (alivePlayers.length <= 1) {
     room.status = "game_over";
     room.winner = alivePlayers.length === 1 ? alivePlayers[0] : null;
     room.currentTurnPlayerId = null;
+    room.isSawedOff = false;
 
     if (room.winner) {
-      addRoomLog(room, `🏆 ${room.winner.name} is the sole survivor and wins the game!`, "victory");
+      addRoomLog(room, `🏆 ${room.winner.name} is the sole survivor and wins the underground showdown!`, "victory");
     } else {
-      addRoomLog(room, "☠️ All players have fallen. No survivors.", "elimination");
+      addRoomLog(room, "☠️ All players have fallen. No survivors at the table.", "elimination");
     }
     return true;
   }
   return false;
 }
 
-// Reload the shotgun chamber
+// Reload the shotgun chamber & grant items
 function reloadChamber(room: ServerRoom) {
   room.roundNumber += 1;
+  room.isSawedOff = false;
   const load = generateShells(room.roundNumber);
   room.secretChamber = load.shells;
   room.chamberInfo = {
@@ -178,6 +256,9 @@ function reloadChamber(room: ServerRoom) {
     `🔄 Chamber reloaded for Round ${room.roundNumber}: [${load.liveCount} Live, ${load.blankCount} Blank shells].`,
     "reload"
   );
+
+  // Distribute items for this round
+  distributeItemsToPlayers(room);
 }
 
 // API Health Check
@@ -213,6 +294,8 @@ io.on("connection", (socket: Socket) => {
       isSpectator: false,
       shotsFired: 0,
       damageTaken: 0,
+      items: [],
+      isHandcuffed: false,
     };
 
     const newRoom: ServerRoom = {
@@ -234,6 +317,7 @@ io.on("connection", (socket: Socket) => {
       winner: null,
       logs: [],
       lastOutcome: null,
+      isSawedOff: false,
     };
 
     rooms.set(roomCode, newRoom);
@@ -241,7 +325,7 @@ io.on("connection", (socket: Socket) => {
     currentPlayerId = playerId;
 
     socket.join(roomCode);
-    addRoomLog(newRoom, `${name} created Room ${roomCode}.`, "join");
+    addRoomLog(newRoom, `${name} entered the underground table (Room ${roomCode}).`, "join");
 
     socket.emit("room:created", { roomCode, playerId });
     io.to(roomCode).emit("room:state", getPublicRoomState(newRoom));
@@ -279,6 +363,8 @@ io.on("connection", (socket: Socket) => {
         isSpectator: true,
         shotsFired: 0,
         damageTaken: 0,
+        items: [],
+        isHandcuffed: false,
       };
 
       room.players.set(playerId, spectatorPlayer);
@@ -286,7 +372,7 @@ io.on("connection", (socket: Socket) => {
       currentPlayerId = playerId;
       socket.join(code);
 
-      addRoomLog(room, `${name} joined as a Spectator.`, "join");
+      addRoomLog(room, `${name} is spectating the table.`, "join");
       socket.emit("room:joined", { roomCode: code, playerId });
       io.to(code).emit("room:state", getPublicRoomState(room));
       return;
@@ -304,6 +390,8 @@ io.on("connection", (socket: Socket) => {
       isSpectator: false,
       shotsFired: 0,
       damageTaken: 0,
+      items: [],
+      isHandcuffed: false,
     };
 
     room.players.set(playerId, newPlayer);
@@ -312,7 +400,7 @@ io.on("connection", (socket: Socket) => {
     currentPlayerId = playerId;
 
     socket.join(code);
-    addRoomLog(room, `${name} joined the lobby.`, "join");
+    addRoomLog(room, `${name} pulled up a chair to the table.`, "join");
 
     socket.emit("room:joined", { roomCode: code, playerId });
     io.to(code).emit("room:state", getPublicRoomState(room));
@@ -335,7 +423,7 @@ io.on("connection", (socket: Socket) => {
       return;
     }
 
-    // Reset player healths and stats for match
+    // Reset player healths, items, and stats for match
     room.turnOrder = [];
     room.players.forEach((p) => {
       p.health = 4;
@@ -344,6 +432,8 @@ io.on("connection", (socket: Socket) => {
       p.isSpectator = false;
       p.shotsFired = 0;
       p.damageTaken = 0;
+      p.items = [];
+      p.isHandcuffed = false;
       room.turnOrder.push(p.id);
     });
 
@@ -359,12 +449,196 @@ io.on("connection", (socket: Socket) => {
     room.lastOutcome = null;
     room.currentTurnIndex = 0;
     room.currentTurnPlayerId = room.turnOrder[0];
+    room.isSawedOff = false;
 
-    addRoomLog(room, "⚔️ The game has begun! Everyone starts with 4 Health Charges.", "info");
+    addRoomLog(room, "⚔️ The showdown begins! Everyone starts with 4 Health Charges.", "info");
 
-    // Load first chamber
+    // Load first chamber and deal items
     reloadChamber(room);
 
+    io.to(currentRoomCode).emit("room:state", getPublicRoomState(room));
+  });
+
+  // Use Item
+  socket.on("game:item_use", (data: { itemType: ItemType; targetId?: string }) => {
+    if (!currentRoomCode) return;
+    const room = rooms.get(currentRoomCode);
+    if (!room || room.status !== "playing") return;
+
+    if (socket.id !== room.currentTurnPlayerId) {
+      socket.emit("error:message", { message: "You can only use items during your active turn!" });
+      return;
+    }
+
+    const player = room.players.get(socket.id);
+    if (!player || !player.isAlive) {
+      socket.emit("error:message", { message: "You are not active in this game." });
+      return;
+    }
+
+    // Check item ownership
+    const itemIndex = player.items.indexOf(data.itemType);
+    if (itemIndex === -1) {
+      socket.emit("error:message", { message: "You do not have that item in your inventory!" });
+      return;
+    }
+
+    // Ensure chamber has shells
+    if (room.secretChamber.length === 0) {
+      reloadChamber(room);
+    }
+
+    // Item Action Logic
+    switch (data.itemType) {
+      case "magnifying_glass": {
+        const currentShell = room.secretChamber[0];
+        const privateResult: PrivateItemResult = {
+          id: `${Date.now()}-mag`,
+          itemType: "magnifying_glass",
+          title: "CHAMBER INSPECTED",
+          message: `The current shell in the chamber is ${currentShell.toUpperCase()}.`,
+          shellType: currentShell,
+          shellPosition: 1,
+        };
+        socket.emit("item:private_result", privateResult);
+        addRoomLog(room, `🔍 ${player.name} examined the chamber through a Magnifying Glass.`, "item");
+        break;
+      }
+
+      case "burner_phone": {
+        const chamberLen = room.secretChamber.length;
+        let targetIndex = 0;
+        let pos = 1;
+
+        if (chamberLen > 1) {
+          // Choose a future shell randomly (index 1 to chamberLen - 1)
+          targetIndex = Math.floor(Math.random() * (chamberLen - 1)) + 1;
+          pos = targetIndex + 1;
+        }
+
+        const revealedShell = room.secretChamber[targetIndex];
+        const suffix = getOrdinalSuffix(pos);
+        const privateResult: PrivateItemResult = {
+          id: `${Date.now()}-phone`,
+          itemType: "burner_phone",
+          title: "ENCRYPTED INTEL",
+          message:
+            chamberLen === 1
+              ? `Only 1 shell remains in the chamber: it is ${revealedShell.toUpperCase()}.`
+              : `Dealer contact whispers: The ${pos}${suffix} shell in the chamber is ${revealedShell.toUpperCase()}.`,
+          shellType: revealedShell,
+          shellPosition: pos,
+        };
+        socket.emit("item:private_result", privateResult);
+        addRoomLog(room, `📞 ${player.name} answered an encrypted call on a Burner Phone...`, "item");
+        break;
+      }
+
+      case "cigarettes": {
+        if (player.health >= player.maxHealth) {
+          socket.emit("error:message", { message: "Your health is already at max (4 charges)!" });
+          return;
+        }
+        player.health = Math.min(player.maxHealth, player.health + 1);
+        addRoomLog(room, `🚬 ${player.name} smoked a Cigarette and recovered +1 Health charge.`, "item");
+        break;
+      }
+
+      case "beer": {
+        const ejectedShell = room.secretChamber.shift()!;
+        room.chamberInfo.remainingShells = room.secretChamber.length;
+        if (ejectedShell === "live") {
+          room.chamberInfo.liveCount = Math.max(0, room.chamberInfo.liveCount - 1);
+        } else {
+          room.chamberInfo.blankCount = Math.max(0, room.chamberInfo.blankCount - 1);
+        }
+
+        addRoomLog(
+          room,
+          `🍺 ${player.name} downed a cold Beer and racked out a [${ejectedShell.toUpperCase()}] shell onto the table!`,
+          "item"
+        );
+
+        if (room.secretChamber.length === 0) {
+          reloadChamber(room);
+        }
+        break;
+      }
+
+      case "handsaw": {
+        if (room.isSawedOff) {
+          socket.emit("error:message", { message: "The shotgun barrel is already sawed off!" });
+          return;
+        }
+        room.isSawedOff = true;
+        addRoomLog(
+          room,
+          `🪚 ${player.name} sawed off the shotgun barrel! The next Live shell will deal 2x DAMAGE!`,
+          "item"
+        );
+        break;
+      }
+
+      case "handcuffs": {
+        if (!data.targetId || data.targetId === player.id) {
+          socket.emit("error:message", { message: "You must select another player to handcuff!" });
+          return;
+        }
+        const targetPlayer = room.players.get(data.targetId);
+        if (!targetPlayer || !targetPlayer.isAlive || targetPlayer.isSpectator) {
+          socket.emit("error:message", { message: "Target player is not valid or already eliminated." });
+          return;
+        }
+        if (targetPlayer.isHandcuffed) {
+          socket.emit("error:message", { message: `${targetPlayer.name} is already handcuffed!` });
+          return;
+        }
+        targetPlayer.isHandcuffed = true;
+        addRoomLog(
+          room,
+          `🔗 ${player.name} clamped rusty Handcuffs onto ${targetPlayer.name}! ${targetPlayer.name} will skip their next turn.`,
+          "item"
+        );
+        break;
+      }
+
+      case "inverter": {
+        const prevShell = room.secretChamber[0];
+        const newShell: ShellType = prevShell === "live" ? "blank" : "live";
+        room.secretChamber[0] = newShell;
+
+        if (prevShell === "live") {
+          room.chamberInfo.liveCount = Math.max(0, room.chamberInfo.liveCount - 1);
+          room.chamberInfo.blankCount += 1;
+        } else {
+          room.chamberInfo.blankCount = Math.max(0, room.chamberInfo.blankCount - 1);
+          room.chamberInfo.liveCount += 1;
+        }
+
+        addRoomLog(
+          room,
+          `⚡ ${player.name} triggered the Polarity Inverter! The current chamber shell flipped polarity.`,
+          "item"
+        );
+        break;
+      }
+
+      default:
+        socket.emit("error:message", { message: "Unknown item type." });
+        return;
+    }
+
+    // Remove used item from inventory
+    player.items.splice(itemIndex, 1);
+
+    // Broadcast item used event for sounds & effects
+    io.to(currentRoomCode).emit("item:used", {
+      itemType: data.itemType,
+      playerId: player.id,
+      targetId: data.targetId,
+    });
+
+    // Broadcast state update
     io.to(currentRoomCode).emit("room:state", getPublicRoomState(room));
   });
 
@@ -376,7 +650,7 @@ io.on("connection", (socket: Socket) => {
 
     // Validate turn
     if (socket.id !== room.currentTurnPlayerId) {
-      socket.emit("error:message", { message: "It is not your turn!" });
+      socket.emit("error:message", { message: "It is not your turn to shoot!" });
       return;
     }
 
@@ -393,6 +667,11 @@ io.on("connection", (socket: Socket) => {
 
     const shell = room.secretChamber.shift()!;
     room.chamberInfo.remainingShells = room.secretChamber.length;
+    if (shell === "live") {
+      room.chamberInfo.liveCount = Math.max(0, room.chamberInfo.liveCount - 1);
+    } else {
+      room.chamberInfo.blankCount = Math.max(0, room.chamberInfo.blankCount - 1);
+    }
     shooter.shotsFired += 1;
 
     let target: Player | undefined;
@@ -408,31 +687,37 @@ io.on("connection", (socket: Socket) => {
         return;
       }
       target = room.players.get(data.targetId);
-      if (!target || !target.isAlive) {
+      if (!target || !target.isAlive || target.isSpectator) {
         socket.emit("error:message", { message: "Target is already eliminated or not found." });
         return;
       }
     }
 
-    // Determine damage and outcome
     const isLive = shell === "live";
-    const damage = isLive ? 1 : 0;
+    const wasSawedOff = room.isSawedOff;
+    const damage = isLive ? (wasSawedOff ? 2 : 1) : 0;
+    
+    // Sawed-off effect is consumed upon firing
+    room.isSawedOff = false;
+
     let targetDied = false;
     let nextTurnPlayerId: string;
     let message = "";
 
     if (isSelfShoot) {
       if (isLive) {
-        target.health = Math.max(0, target.health - 1);
-        target.damageTaken += 1;
+        target.health = Math.max(0, target.health - damage);
+        target.damageTaken += damage;
         if (target.health === 0) {
           target.isAlive = false;
           target.isSpectator = true;
           targetDied = true;
         }
-        // Live round against self -> turn passes
+        // Live round against self -> turn passes to next alive player
         nextTurnPlayerId = getNextAlivePlayerId(room, shooter.id) || shooter.id;
-        message = `${shooter.name} aimed at themself... 💥 BANG! Live shell discharged. ${shooter.name} took 1 damage.`;
+        message = wasSawedOff
+          ? `${shooter.name} pointed the sawed-off shotgun at themself... 💥 BOOM! Sawed-off live shell dealt ${damage} DAMAGE!`
+          : `${shooter.name} aimed at themself... 💥 BANG! Live shell discharged. ${shooter.name} took 1 damage.`;
       } else {
         // Blank round against self -> Shooter retains turn!
         nextTurnPlayerId = shooter.id;
@@ -441,24 +726,26 @@ io.on("connection", (socket: Socket) => {
     } else {
       // Shooting another player
       if (isLive) {
-        target.health = Math.max(0, target.health - 1);
-        target.damageTaken += 1;
+        target.health = Math.max(0, target.health - damage);
+        target.damageTaken += damage;
         if (target.health === 0) {
           target.isAlive = false;
           target.isSpectator = true;
           targetDied = true;
         }
         nextTurnPlayerId = getNextAlivePlayerId(room, shooter.id) || shooter.id;
-        message = `${shooter.name} aimed at ${target.name}... 💥 BOOM! Live shell hit ${target.name} for 1 damage!`;
+        message = wasSawedOff
+          ? `${shooter.name} fired the SAWED-OFF shotgun into ${target.name}... 💥💥 DEVASTATING BLAST! ${target.name} suffered 2 DAMAGE!`
+          : `${shooter.name} aimed at ${target.name}... 💥 BOOM! Live shell hit ${target.name} for 1 damage!`;
       } else {
         nextTurnPlayerId = getNextAlivePlayerId(room, shooter.id) || shooter.id;
-        message = `${shooter.name} aimed at ${target.name}... 💨 CLICK! It was a blank. Turn passes.`;
+        message = `${shooter.name} pulled the trigger on ${target.name}... 💨 CLICK! It was a blank. Turn passes.`;
       }
     }
 
     if (targetDied) {
-      message += ` ☠️ ${target.name} has been eliminated!`;
-      addRoomLog(room, `☠️ ${target.name} ran out of health charges and was eliminated.`, "elimination");
+      message += ` ☠️ ${target.name} flatlined and was eliminated!`;
+      addRoomLog(room, `☠️ ${target.name} ran out of health charges and died.`, "elimination");
     }
 
     const outcome: ActionOutcome = {
@@ -474,6 +761,7 @@ io.on("connection", (socket: Socket) => {
       message,
       targetDied,
       nextTurnPlayerId,
+      isSawedOff: wasSawedOff,
     };
 
     room.lastOutcome = outcome;
@@ -514,15 +802,18 @@ io.on("connection", (socket: Socket) => {
     room.currentTurnPlayerId = null;
     room.secretChamber = [];
     room.chamberInfo = { liveCount: 0, blankCount: 0, totalShells: 0, remainingShells: 0 };
+    room.isSawedOff = false;
 
     room.players.forEach((p) => {
       p.health = 4;
       p.maxHealth = 4;
       p.isAlive = true;
       p.isSpectator = false;
+      p.items = [];
+      p.isHandcuffed = false;
     });
 
-    addRoomLog(room, "🔄 Host reset the room back to Lobby. Ready up for a new match!", "info");
+    addRoomLog(room, "🔄 Host reset the table back to Lobby. Ready up for a new match!", "info");
     io.to(currentRoomCode).emit("room:state", getPublicRoomState(room));
   });
 
@@ -538,7 +829,7 @@ io.on("connection", (socket: Socket) => {
     room.players.delete(currentPlayerId);
     room.turnOrder = room.turnOrder.filter((id) => id !== currentPlayerId);
 
-    addRoomLog(room, `${playerName} left the room.`, "leave");
+    addRoomLog(room, `${playerName} left the table.`, "leave");
 
     if (room.players.size === 0) {
       // Clean up empty room
@@ -552,7 +843,7 @@ io.on("connection", (socket: Socket) => {
       if (nextHost) {
         room.hostId = nextHost.id;
         nextHost.isHost = true;
-        addRoomLog(room, `👑 ${nextHost.name} is now the room host.`, "info");
+        addRoomLog(room, `👑 ${nextHost.name} is now the table host.`, "info");
       }
     }
 
@@ -591,3 +882,4 @@ async function start() {
 }
 
 start();
+

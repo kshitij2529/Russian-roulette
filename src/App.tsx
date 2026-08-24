@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { io, Socket } from "socket.io-client";
-import { PublicRoomState } from "./types";
+import { ItemType, PrivateItemResult, PublicRoomState } from "./types";
 import { LobbyView } from "./components/LobbyView";
 import { GameBoard } from "./components/GameBoard";
 import { CodeViewerModal } from "./components/CodeViewerModal";
@@ -13,6 +13,7 @@ export default function App() {
   const [myPlayerId, setMyPlayerId] = useState<string | null>(null);
   const [roomState, setRoomState] = useState<PublicRoomState | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [privateIntel, setPrivateIntel] = useState<PrivateItemResult | null>(null);
   const [showCodeViewer, setShowCodeViewer] = useState<boolean>(false);
   const [muted, setMuted] = useState<boolean>(false);
 
@@ -51,6 +52,43 @@ export default function App() {
       setErrorMessage(null);
     });
 
+    // Private item reveals (Magnifying Glass / Burner Phone)
+    socketInstance.on("item:private_result", (intel: PrivateItemResult) => {
+      setPrivateIntel(intel);
+      if (intel.itemType === "magnifying_glass") {
+        sound.playMagnifyingGlass();
+      } else if (intel.itemType === "burner_phone") {
+        sound.playPhoneRing();
+      }
+    });
+
+    // Public item audio broadcast
+    socketInstance.on("item:used", (data: { itemType: ItemType; playerId: string; targetId?: string }) => {
+      switch (data.itemType) {
+        case "magnifying_glass":
+          sound.playMagnifyingGlass();
+          break;
+        case "burner_phone":
+          sound.playPhoneRing();
+          break;
+        case "cigarettes":
+          sound.playCigarette();
+          break;
+        case "beer":
+          sound.playBeer();
+          break;
+        case "handsaw":
+          sound.playSaw();
+          break;
+        case "handcuffs":
+          sound.playHandcuffs();
+          break;
+        case "inverter":
+          sound.playInverter();
+          break;
+      }
+    });
+
     socketInstance.on("error:message", (data: { message: string }) => {
       setErrorMessage(data.message);
       sound.playDamage();
@@ -82,6 +120,11 @@ export default function App() {
     socket.emit("game:action", { action, targetId });
   };
 
+  const handleUseItem = (itemType: ItemType, targetId?: string) => {
+    if (!socket) return;
+    socket.emit("game:item_use", { itemType, targetId });
+  };
+
   const handlePlayAgain = () => {
     if (!socket) return;
     socket.emit("room:play_again");
@@ -93,6 +136,7 @@ export default function App() {
       socket.connect();
     }
     setRoomState(null);
+    setPrivateIntel(null);
     setMyPlayerId(socket?.id || null);
   };
 
@@ -103,19 +147,19 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col selection:bg-amber-500/30 selection:text-amber-200">
+    <div className="min-h-screen bg-stone-950 text-neutral-100 flex flex-col selection:bg-red-900/50 selection:text-red-200">
       {/* Top Application Header */}
-      <header className="border-b border-neutral-800/80 bg-neutral-950/90 backdrop-blur-md sticky top-0 z-40 px-4 sm:px-8 py-3">
+      <header className="border-b border-stone-800/80 bg-stone-950/90 backdrop-blur-md sticky top-0 z-40 px-4 sm:px-8 py-3">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-red-600 flex items-center justify-center font-black text-neutral-950 shadow-md shadow-amber-500/20">
-              <Shield className="w-4 h-4 fill-current text-neutral-950" />
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-red-600 via-stone-800 to-amber-600 flex items-center justify-center font-black text-white shadow-lg shadow-red-950/50 border border-red-800/40">
+              <Shield className="w-4 h-4 fill-current text-white" />
             </div>
             <div>
               <h1 className="text-base sm:text-lg font-black tracking-wider text-neutral-100 font-mono flex items-center gap-2">
-                <span>BUCKSHOT ROULETTE</span>
-                <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">
-                  MULTIPLAYER
+                <span className="text-stone-100">BUCKSHOT ROULETTE</span>
+                <span className="text-[10px] uppercase font-black px-1.5 py-0.5 rounded bg-red-900/40 text-red-400 border border-red-700/40">
+                  UNDERGROUND
                 </span>
               </h1>
             </div>
@@ -123,14 +167,14 @@ export default function App() {
 
           <div className="flex items-center gap-2">
             {/* Connection Indicator */}
-            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-neutral-900 border border-neutral-800 text-[11px] font-mono">
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-900 border border-stone-800 text-[11px] font-mono">
               <span
                 className={`w-2 h-2 rounded-full ${
-                  connected ? "bg-emerald-400" : "bg-red-500 animate-ping"
+                  connected ? "bg-emerald-500 shadow-sm shadow-emerald-500/50" : "bg-red-500 animate-ping"
                 }`}
               />
               <span className={connected ? "text-emerald-400" : "text-red-400"}>
-                {connected ? "Server Authoritative" : "Connecting..."}
+                {connected ? "Server Synchronized" : "Reconnecting..."}
               </span>
             </div>
 
@@ -138,7 +182,7 @@ export default function App() {
             <button
               id="btn-open-code-viewer"
               onClick={() => setShowCodeViewer(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-medium bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white rounded-lg border border-neutral-800 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-medium bg-stone-900 hover:bg-stone-800 text-stone-300 hover:text-white rounded-lg border border-stone-800 transition-colors"
               title="View standalone Node.js Express server.js and client code"
             >
               <Code2 className="w-3.5 h-3.5 text-amber-500" />
@@ -149,7 +193,7 @@ export default function App() {
             <button
               id="btn-top-sound"
               onClick={toggleSound}
-              className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors"
+              className="p-2 text-stone-400 hover:text-white hover:bg-stone-800 rounded-lg transition-colors"
               title={muted ? "Unmute" : "Mute"}
             >
               {muted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
@@ -159,10 +203,10 @@ export default function App() {
       </header>
 
       {/* Main Game Arena / Body */}
-      <main className="flex-1 flex flex-col justify-center px-4 py-6 sm:py-10 max-w-6xl w-full mx-auto">
+      <main className="flex-1 flex flex-col justify-center px-3 sm:px-6 py-4 sm:py-8 max-w-6xl w-full mx-auto">
         {/* Error Toast */}
         {errorMessage && (
-          <div className="max-w-md mx-auto mb-6 p-3 rounded-xl bg-red-950/90 border border-red-500/60 text-red-200 text-xs sm:text-sm font-medium flex items-center gap-2.5 shadow-xl animate-in fade-in slide-in-from-top-2">
+          <div className="max-w-md mx-auto mb-6 p-3 rounded-xl bg-red-950/90 border border-red-500/60 text-red-200 text-xs sm:text-sm font-medium flex items-center gap-2.5 shadow-2xl shadow-red-950/80 animate-in fade-in slide-in-from-top-2">
             <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
             <span>{errorMessage}</span>
           </div>
@@ -182,7 +226,10 @@ export default function App() {
           <GameBoard
             roomState={roomState}
             myPlayerId={myPlayerId}
+            privateIntel={privateIntel}
+            onClearIntel={() => setPrivateIntel(null)}
             onAction={handleGameAction}
+            onUseItem={handleUseItem}
             onPlayAgain={handlePlayAgain}
             onLeaveRoom={handleLeaveRoom}
           />
@@ -195,9 +242,10 @@ export default function App() {
       )}
 
       {/* Footer info */}
-      <footer className="py-4 border-t border-neutral-900 text-center text-xs text-neutral-400 font-mono">
-        Buckshot Roulette Multiplayer • 2 to 8 Players Real-Time Table • Authoritative Node.js Server
+      <footer className="py-3 border-t border-stone-900 text-center text-xs text-stone-500 font-mono">
+        Buckshot Roulette Multiplayer • Dark Table Visuals • Balanced Item System • 2 to 8 Players
       </footer>
     </div>
   );
 }
+
