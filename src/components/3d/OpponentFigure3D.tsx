@@ -3,7 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import { Player } from "../../types";
-import { Zap, Lock, Skull, Crosshair } from "lucide-react";
+import { Zap, Lock, Skull } from "lucide-react";
 
 interface OpponentFigure3DProps {
   player: Player;
@@ -62,11 +62,11 @@ export const OpponentFigure3D: React.FC<OpponentFigure3DProps> = ({
       }}
       onPointerOut={() => setHovered(false)}
     >
-      {/* Selection / Target Indicator Disc on Table Edge */}
+      {/* Target indicator ring on table edge when selected */}
       {isSelected && !isDead && (
         <mesh
           ref={targetRingRef}
-          position={[0, 0.1, -0.6]}
+          position={[0, 0.08, -0.65]}
           rotation={[-Math.PI / 2, 0, 0]}
         >
           <ringGeometry args={[0.22, 0.28, 32]} />
@@ -81,39 +81,39 @@ export const OpponentFigure3D: React.FC<OpponentFigure3DProps> = ({
       {/* Active Turn Halo Ring */}
       {isCurrentTurn && !isDead && (
         <mesh position={[0, 1.45, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[0.24, 0.018, 12, 32]} />
+          <torusGeometry args={[0.22, 0.015, 12, 32]} />
           <meshBasicMaterial color="#f59e0b" />
         </mesh>
       )}
 
-      {/* Wooden Chair behind opponent */}
-      <group position={[0, -0.5, 0.45]}>
-        {/* Chair Seat */}
-        <mesh position={[0, 0, 0]} receiveShadow>
+      {/* Wooden Chair grounded firmly on the floor (floor is at y = -1.1) */}
+      <group position={[0, 0, 0.45]}>
+        {/* Chair Seat at y = -0.5 */}
+        <mesh position={[0, -0.5, 0]} receiveShadow castShadow>
           <boxGeometry args={[0.55, 0.06, 0.5]} />
           <meshStandardMaterial color="#1a0f0a" roughness={0.9} />
         </mesh>
         {/* Chair Backrest */}
-        <mesh position={[0, 0.4, 0.22]} castShadow>
+        <mesh position={[0, -0.1, 0.22]} castShadow>
           <boxGeometry args={[0.52, 0.75, 0.05]} />
           <meshStandardMaterial color="#24140e" roughness={0.85} />
         </mesh>
-        {/* Chair Legs */}
-        <mesh position={[-0.22, -0.35, -0.18]}>
-          <cylinderGeometry args={[0.025, 0.025, 0.65, 8]} />
-          <meshStandardMaterial color="#140a06" />
+        {/* Chair Legs touching floor at y = -1.1 */}
+        <mesh position={[-0.22, -0.8, -0.18]} castShadow receiveShadow>
+          <cylinderGeometry args={[0.025, 0.025, 0.6, 8]} />
+          <meshStandardMaterial color="#140a06" roughness={0.9} />
         </mesh>
-        <mesh position={[0.22, -0.35, -0.18]}>
-          <cylinderGeometry args={[0.025, 0.025, 0.65, 8]} />
-          <meshStandardMaterial color="#140a06" />
+        <mesh position={[0.22, -0.8, -0.18]} castShadow receiveShadow>
+          <cylinderGeometry args={[0.025, 0.025, 0.6, 8]} />
+          <meshStandardMaterial color="#140a06" roughness={0.9} />
         </mesh>
-        <mesh position={[-0.22, -0.35, 0.2]}>
-          <cylinderGeometry args={[0.025, 0.025, 0.65, 8]} />
-          <meshStandardMaterial color="#140a06" />
+        <mesh position={[-0.22, -0.8, 0.2]} castShadow receiveShadow>
+          <cylinderGeometry args={[0.025, 0.025, 0.6, 8]} />
+          <meshStandardMaterial color="#140a06" roughness={0.9} />
         </mesh>
-        <mesh position={[0.22, -0.35, 0.2]}>
-          <cylinderGeometry args={[0.025, 0.025, 0.65, 8]} />
-          <meshStandardMaterial color="#140a06" />
+        <mesh position={[0.22, -0.8, 0.2]} castShadow receiveShadow>
+          <cylinderGeometry args={[0.025, 0.025, 0.6, 8]} />
+          <meshStandardMaterial color="#140a06" roughness={0.9} />
         </mesh>
       </group>
 
@@ -171,9 +171,8 @@ export const OpponentFigure3D: React.FC<OpponentFigure3DProps> = ({
           </mesh>
         </group>
 
-        {/* Head / Eerie Anonymous Mask */}
+        {/* Head / Mask */}
         <group position={[0, 0.72, 0.06]}>
-          {/* Head Base */}
           <mesh castShadow>
             <sphereGeometry args={[0.18, 16, 16]} />
             <meshStandardMaterial
@@ -221,88 +220,74 @@ export const OpponentFigure3D: React.FC<OpponentFigure3DProps> = ({
         )}
       </group>
 
-      {/* Floating 2D Billboard Name & Status Badge directly above head */}
+      {/* Compact, sleek nameplate directly above avatar containing Name, Health icons, and Item count */}
       <Html
-        position={[0, 1.4, 0]}
+        position={[0, 1.35, 0]}
         center
         distanceFactor={6.5}
         style={{ pointerEvents: isDead ? "none" : "auto" }}
       >
         <div
           onClick={handleClick}
-          className={`select-none transition-all duration-200 cursor-pointer flex flex-col items-center gap-1 p-2 rounded-xl backdrop-blur-md border ${
+          className={`select-none transition-all duration-150 cursor-pointer flex flex-col items-center gap-0.5 px-2.5 py-1 rounded-lg backdrop-blur-md border text-center shadow-lg ${
             isSelected
               ? isHandcuffMode
-                ? "bg-amber-950/90 border-amber-400 ring-2 ring-amber-500 shadow-xl shadow-amber-950 scale-105"
-                : "bg-red-950/95 border-red-500 ring-2 ring-red-600 shadow-xl shadow-red-950 scale-105"
+                ? "bg-amber-950/90 border-amber-400 ring-2 ring-amber-400/80 scale-105"
+                : "bg-red-950/95 border-red-500 ring-2 ring-red-500/80 scale-105"
               : hovered && isMyTurn && !isDead
-              ? "bg-stone-900/90 border-stone-600 shadow-lg scale-105"
-              : isCurrentTurn
-              ? "bg-amber-950/80 border-amber-500/80 shadow-lg"
-              : "bg-stone-950/85 border-stone-800"
-          } ${isDead ? "opacity-40 grayscale" : ""}`}
+              ? "bg-stone-900/90 border-stone-500 scale-105"
+              : isCurrentTurn && !isDead
+              ? "bg-amber-950/80 border-amber-500/70"
+              : "bg-stone-950/85 border-stone-800/80"
+          } ${isDead ? "opacity-35 grayscale" : ""}`}
         >
-          {/* Target Reticle Indicator on Selection */}
-          {isSelected && !isDead && (
-            <div className="flex items-center gap-1 text-[10px] font-black uppercase text-red-400 bg-red-900/50 px-2 py-0.5 rounded-full border border-red-500/60 animate-pulse">
-              <Crosshair className="w-3 h-3" />
-              <span>{isHandcuffMode ? "Handcuff Target" : "Target Locked"}</span>
-            </div>
-          )}
-
-          {/* Turn Tag */}
-          {isCurrentTurn && !isDead && !isSelected && (
-            <div className="text-[10px] font-bold uppercase tracking-wider text-amber-400 bg-amber-900/40 px-2 py-0.5 rounded-full border border-amber-600/40 animate-pulse">
-              Shooting Turn
-            </div>
-          )}
-
-          {/* Player Name and Handcuff Tag */}
+          {/* Top Line: Dot + Player Name + Handcuff icon */}
           <div className="flex items-center gap-1.5 whitespace-nowrap">
             <span
-              className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/40"
+              className="w-2 h-2 rounded-full shrink-0"
               style={{ backgroundColor: player.avatarColor || "#94a3b8" }}
             />
-            <span className="font-mono font-black text-xs text-white max-w-[120px] truncate">
+            <span className="font-mono font-bold text-[11px] text-stone-100 max-w-[90px] truncate">
               {player.name}
             </span>
             {player.isHandcuffed && !isDead && (
-              <span title="Handcuffed (Skips next turn)">
-                <Lock className="w-3 h-3 text-cyan-400" />
-              </span>
+              <Lock className="w-2.5 h-2.5 text-cyan-400 shrink-0" />
             )}
           </div>
 
-          {/* Health Charges (Pips) */}
+          {/* Bottom Line: Health Icons & Item Count */}
           {!isDead ? (
-            <div className="flex items-center gap-1 mt-0.5">
-              {Array.from({ length: player.maxHealth || 4 }).map((_, i) => {
-                const isFull = i < player.health;
-                return (
-                  <div
-                    key={i}
-                    className={`w-3.5 h-3.5 rounded-md flex items-center justify-center border text-[9px] transition-colors ${
-                      isFull
-                        ? "bg-emerald-600 border-emerald-400 text-white shadow-sm shadow-emerald-600/50"
-                        : "bg-stone-900 border-stone-800 text-stone-700"
-                    }`}
-                  >
-                    <Zap className="w-2.5 h-2.5 fill-current" />
-                  </div>
-                );
-              })}
+            <div className="flex items-center gap-1.5 mt-0.5">
+              {/* Health icons (Defib charges) */}
+              <div className="flex items-center gap-0.5">
+                {Array.from({ length: player.maxHealth || 4 }).map((_, i) => {
+                  const isFull = i < player.health;
+                  return (
+                    <span
+                      key={i}
+                      className={`w-2.5 h-2.5 rounded-xs flex items-center justify-center text-[7px] ${
+                        isFull
+                          ? "bg-emerald-500 text-stone-950 font-bold"
+                          : "bg-stone-800 text-stone-600"
+                      }`}
+                    >
+                      <Zap className="w-2 h-2 fill-current" />
+                    </span>
+                  );
+                })}
+              </div>
+
+              {/* Item Count */}
+              {player.items && player.items.length > 0 && (
+                <span className="text-[9px] font-mono text-stone-400 bg-stone-900/80 px-1 py-0.2 rounded border border-stone-800/80">
+                  🎒 {player.items.length}
+                </span>
+              )}
             </div>
           ) : (
-            <div className="flex items-center gap-1 text-[11px] font-mono text-red-500 font-bold">
-              <Skull className="w-3.5 h-3.5" />
+            <div className="flex items-center gap-1 text-[9px] font-mono text-red-500 font-bold uppercase tracking-wider">
+              <Skull className="w-2.5 h-2.5" />
               <span>ELIMINATED</span>
-            </div>
-          )}
-
-          {/* Opponent item count */}
-          {!isDead && player.items && player.items.length > 0 && (
-            <div className="text-[9px] font-mono text-stone-400">
-              {player.items.length} item{player.items.length > 1 ? "s" : ""}
             </div>
           )}
         </div>

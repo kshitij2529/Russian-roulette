@@ -1,5 +1,5 @@
 import React, { useMemo, useRef } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { PerspectiveCamera } from "@react-three/drei";
 import * as THREE from "three";
 import { ActionOutcome, PublicRoomState } from "../../types";
@@ -19,13 +19,23 @@ interface GameCanvas3DProps {
   onSelectTarget: (playerId: string) => void;
 }
 
-// First-person POV camera controller: position [0, 2.2, 4], fov 50, looking down at [0, 0, 0]
+// First-person POV camera controller calibrated for mobile landscape and desktop
 const FirstPersonCameraController: React.FC<{
   isShaking: boolean;
   selectedTargetPos: [number, number, number] | null;
 }> = ({ isShaking, selectedTargetPos }) => {
   const cameraRef = useRef<THREE.PerspectiveCamera>(null);
   const shakeIntensity = useRef<number>(0);
+  const { size } = useThree();
+
+  // Responsive FOV based on aspect ratio to prevent clipping in mobile landscape or portrait
+  const aspect = size.width / Math.max(size.height, 1);
+  const targetFov = useMemo(() => {
+    if (aspect > 1.8) return 46; // Wide mobile landscape
+    if (aspect > 1.3) return 48; // Standard desktop/laptop
+    if (aspect > 0.9) return 54; // Tablet / square
+    return 62; // Portrait
+  }, [aspect]);
 
   React.useEffect(() => {
     if (isShaking) {
@@ -36,10 +46,14 @@ const FirstPersonCameraController: React.FC<{
   useFrame((_, delta) => {
     if (!cameraRef.current) return;
 
+    // Smoothly adapt FOV
+    cameraRef.current.fov = THREE.MathUtils.lerp(cameraRef.current.fov, targetFov, delta * 5);
+    cameraRef.current.updateProjectionMatrix();
+
     // Subtle first-person head sway
     const time = Date.now() * 0.0015;
-    const swayX = Math.sin(time) * 0.015;
-    const swayY = Math.cos(time * 1.5) * 0.012;
+    const swayX = Math.sin(time) * 0.012;
+    const swayY = Math.cos(time * 1.5) * 0.01;
 
     // Camera recoil / impact shake
     let shakeX = 0;
@@ -50,19 +64,19 @@ const FirstPersonCameraController: React.FC<{
       shakeIntensity.current = THREE.MathUtils.lerp(shakeIntensity.current, 0, delta * 6);
     }
 
-    // Set camera position to [0, 2.2, 4] with subtle sway/shake
+    // Position camera at eyes level [0, 2.4, 4.2] so full table & gun & arc are visible
     cameraRef.current.position.x = 0 + swayX + shakeX;
-    cameraRef.current.position.y = 2.2 + swayY + shakeY;
-    cameraRef.current.position.z = 4.0;
+    cameraRef.current.position.y = 2.4 + swayY + shakeY;
+    cameraRef.current.position.z = 4.2;
 
-    // Base look target: center table [0, 0, 0]
-    const lookTarget = new THREE.Vector3(0, 0, 0);
+    // Base look target: center table [0, 0, 0] looking slightly downward
+    const lookTarget = new THREE.Vector3(0, 0.05, 0);
 
-    // If an opponent is targeted, glance slightly toward them
+    // If an opponent is targeted, glance subtly toward them
     if (selectedTargetPos) {
-      lookTarget.x = selectedTargetPos[0] * 0.18;
-      lookTarget.y = selectedTargetPos[1] * 0.1;
-      lookTarget.z = selectedTargetPos[2] * 0.18;
+      lookTarget.x = selectedTargetPos[0] * 0.15;
+      lookTarget.y = 0.1;
+      lookTarget.z = selectedTargetPos[2] * 0.15;
     }
 
     cameraRef.current.lookAt(lookTarget);
@@ -75,7 +89,7 @@ const FirstPersonCameraController: React.FC<{
       fov={50}
       near={0.1}
       far={100}
-      position={[0, 2.2, 4]}
+      position={[0, 2.4, 4.2]}
     />
   );
 };
@@ -149,33 +163,33 @@ export const GameCanvas3D: React.FC<GameCanvas3DProps> = ({
   }, [roomState.currentTurnPlayerId, myPlayerId, opponentsWith3DPositions]);
 
   return (
-    <div className="relative w-full h-full min-h-[480px] bg-black select-none overflow-hidden rounded-3xl border border-stone-800 shadow-2xl">
+    <div className="relative w-full h-full min-h-[420px] bg-[#070605] select-none overflow-hidden rounded-3xl border border-stone-800 shadow-2xl">
       <Canvas
         shadows
         gl={{
           antialias: true,
           toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: 1.2,
+          toneMappingExposure: 1.15,
         }}
       >
-        {/* Background is pitch black */}
-        <color attach="background" args={["#030303"]} />
-        <fog attach="fog" args={["#050505", 6, 20]} />
+        {/* Background & subtle ambient fog */}
+        <color attach="background" args={["#080706"]} />
+        <fog attach="fog" args={["#080706", 8, 22]} />
 
-        {/* First Person Camera (Position [0, 2.2, 4], FOV 50, looking down at center) */}
+        {/* First Person Camera (Position [0, 2.4, 4.2], looking down at center) */}
         <FirstPersonCameraController
           isShaking={!!animatingShot}
           selectedTargetPos={target3DPosition}
         />
 
-        {/* Ambient light with intensity={0.4} so room and table are clearly visible */}
-        <ambientLight intensity={0.4} color="#e5e5e5" />
+        {/* Low ambient lighting (ambientLight intensity={0.2}) so chairs and players are dimly visible */}
+        <ambientLight intensity={0.2} color="#ffffff" />
 
-        {/* The Circular Wooden Table, Overhead Spotlight & Skulls Centerpiece */}
+        {/* The Circular Wooden Table, Overhead Spotlight, Floor Plane & Skulls Centerpiece */}
         <TableScene isSawedOff={roomState.isSawedOff} />
 
         {/* Atmosphere Motes floating in the light cone */}
-        <AtmosphereParticles count={70} />
+        <AtmosphereParticles count={55} />
 
         {/* Opponents seated in semi-circular arc (-60° to +60° at radius 2.9) */}
         {opponentsWith3DPositions.map(({ player, position, rotationY }) => (
